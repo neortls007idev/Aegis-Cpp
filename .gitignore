@@ -1,3 +1,55 @@
+# Top-level outputs
+/Bin/
+/Distro/
+
+# Build trees
+/build/
+/out/
+/cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+*.ninja
+*.sln
+*.vcxproj*
+*.user
+.ipch/
+.vs/
+
+# NMake / MSVC artifacts
+*.obj
+*.pdb
+*.idb
+*.ilk
+*.lib
+*.exp
+*.dll
+*.exe
+*.log
+
+# Qt generated
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+*.qm
+
+# ImGui demo/binaries (if any local tests)
+/Thirdparty/imgui/examples/build*/
+
+# Python helpers (if any)
+__pycache__/
+*.py[cod]
+.venv/
+.env
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Archives
+*.zip
+*.tar.gz
+
 # Prerequisites
 *.d
 

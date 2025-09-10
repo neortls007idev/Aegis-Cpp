@@ -1,0 +1,19 @@
+# Normalize line endings
+* text=auto eol=lf
+
+# Treat third-party as vendored to avoid skewing language stats
+/Source/Thirdparty/** linguist-vendored
+
+# Mark common binary types
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.bmp binary
+*.ico binary
+*.pdf binary
+
+# Improve diffs for C/C++
+*.h   diff=cpp
+*.hpp diff=cpp
+*.c   diff=cpp
+*.cpp diff=cpp

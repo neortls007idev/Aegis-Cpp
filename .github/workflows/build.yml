@@ -1,0 +1,43 @@
+﻿name: CI (Windows NMake)
+
+on:
+  push:
+    branches: [ main, dev, feat/** ]
+  pull_request:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup Ninja (optional)
+        uses: ashutoshvarma/setup-ninja@v1.1
+        with:
+          version: latest
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Configure (CMake → NMake)
+        shell: cmd
+        run: |
+          if not exist build mkdir build
+          cd build
+          cmake -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DAEGIS_WITH_QT=ON -DAEGIS_WITH_IMGUI=ON ..
+      
+      - name: Build (NMake)
+        shell: cmd
+        run: |
+          cd build
+          nmake /NOLOGO
+
+      - name: Run Unit Tests
+        shell: cmd
+        run: |
+          if exist RunTests.bat call RunTests.bat

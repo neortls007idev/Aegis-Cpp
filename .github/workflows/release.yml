@@ -1,0 +1,47 @@
+﻿name: Release (Windows)
+
+on:
+  push:
+    tags: [ "v*.*.*" ]
+
+permissions:
+  contents: write
+
+jobs:
+  win-zip:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: microsoft/setup-msbuild@v2
+      - uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Configure (CMake → NMake)
+        shell: cmd
+        run: |
+          if not exist build mkdir build
+          cd build
+          cmake -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DAEGIS_WITH_QT=ON -DAEGIS_WITH_IMGUI=ON ..
+      
+      - name: Build
+        shell: cmd
+        run: |
+          cd build
+          nmake /NOLOGO
+
+      - name: Pack Distro
+        shell: bash
+        run: |
+          mkdir -p Distro
+          cp -r Bin Distro/Bin
+          cp LICENSE Distro/
+          cp THIRD_PARTY_NOTICES.md Distro/
+          7z a Aegis-Cpp-${{ github.ref_name }}-win64.zip ./Distro/*
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Aegis-Cpp-${{ github.ref_name }}-win64.zip
