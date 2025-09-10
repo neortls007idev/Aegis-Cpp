@@ -1,47 +1,110 @@
-﻿name: Release (Windows)
+name: Release
 
 on:
   push:
-    tags: [ "v*.*.*" ]
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'   # e.g., v1.0.23
 
 permissions:
   contents: write
 
+env:
+  AEGIS_DEBUG_LOG: "1"
+  CMAKE_VERBOSE_MAKEFILE: "ON"
+
 jobs:
-  win-zip:
-    runs-on: windows-latest
+  release:
+    name: Release (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        buildtype: [Release]
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - uses: microsoft/setup-msbuild@v2
-      - uses: jwlawson/actions-setup-cmake@v2
+      - name: Set Release Author (Rahul Gupta)
+        run: |
+          git config user.name "Rahul Gupta"
+          git config user.email "contact@rahulguptagamedev.com"
 
-      - name: Configure (CMake → NMake)
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Setup Ninja (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        uses: ashutoshvarma/setup-ninja@v1.1
+
+      - name: Setup MSBuild (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Configure (Windows → NMake)
+        if: matrix.os == 'windows-latest'
         shell: cmd
         run: |
+          set AEGIS_DEBUG_LOG=1
           if not exist build mkdir build
           cd build
-          cmake -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DAEGIS_WITH_QT=ON -DAEGIS_WITH_IMGUI=ON ..
-      
-      - name: Build
+          cmake -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=${{ matrix.buildtype }} -DCMAKE_VERBOSE_MAKEFILE=ON -DAEGIS_WITH_QT=ON -DAEGIS_WITH_IMGUI=ON ..
+
+      - name: Configure (Linux/macOS → Ninja)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          set -x
+          mkdir -p build && cd build
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.buildtype }} -DCMAKE_VERBOSE_MAKEFILE=ON -DAEGIS_WITH_QT=ON -DAEGIS_WITH_IMGUI=ON ..
+
+      - name: Build (Windows → NMake)
+        if: matrix.os == 'windows-latest'
         shell: cmd
         run: |
+          set AEGIS_DEBUG_LOG=1
           cd build
           nmake /NOLOGO
 
-      - name: Pack Distro
+      - name: Build (Linux/macOS → Ninja)
+        if: matrix.os != 'windows-latest'
         shell: bash
         run: |
+          set -x
+          cd build
+          cmake --build . --config ${{ matrix.buildtype }} --verbose
+
+      - name: Package Release
+        shell: bash
+        run: |
+          set -x
           mkdir -p Distro
-          cp -r Bin Distro/Bin
-          cp LICENSE Distro/
-          cp THIRD_PARTY_NOTICES.md Distro/
-          7z a Aegis-Cpp-${{ github.ref_name }}-win64.zip ./Distro/*
+          if [ -d "Bin" ]; then cp -r Bin Distro/Bin || true; fi
+          if [ -f "LICENSE" ]; then cp LICENSE Distro/ || true; fi
+          if [ -f "THIRD_PARTY_NOTICES.md" ]; then cp THIRD_PARTY_NOTICES.md Distro/ || true; fi
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a Aegis-Cpp-${{ github.ref_name }}-win64.zip ./Distro/*
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            tar -czf Aegis-Cpp-${{ github.ref_name }}-macos.tar.gz Distro
+          else
+            tar -czf Aegis-Cpp-${{ github.ref_name }}-linux.tar.gz Distro
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
+          name: "Aegis-Cpp ${{ github.ref_name }} — Author: Rahul Gupta"
+          body: |
+            Release authored by Rahul Gupta.
+            Tag: ${{ github.ref_name }}
+            OS: ${{ runner.os }}
+            BuildType: ${{ matrix.buildtype }}
           files: |
-            Aegis-Cpp-${{ github.ref_name }}-win64.zip
+            *.zip
+            *.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.RAHUL_GH_TOKEN || secrets.GITHUB_TOKEN }}

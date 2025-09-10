@@ -1,0 +1,69 @@
+name: StaticAnalysis
+
+on:
+  push:
+    branches: [ main, dev, feat/** ]
+  pull_request:
+
+env:
+  AEGIS_DEBUG_LOG: "1"
+  CMAKE_EXPORT_COMPILE_COMMANDS: "ON"
+
+jobs:
+  analysis:
+    name: Static Analysis (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Setup Ninja (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        uses: ashutoshvarma/setup-ninja@v1.1
+
+      - name: Configure compile commands (Ninja on non-Windows; NMake on Windows)
+        shell: bash
+        run: |
+          set -x
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cmake -S . -B build-sa -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release
+          else
+            cmake -S . -B build-sa -G Ninja -DCMAKE_BUILD_TYPE=Release
+          fi
+
+      - name: clang-tidy (best-effort)
+        shell: bash
+        run: |
+          set -x
+          if command -v clang-tidy >/dev/null 2>&1; then
+            if [ -f build-sa/compile_commands.json ]; then
+              mapfile -t tufs < <(ls -1 **/*.cpp 2>/dev/null | grep -v "/Thirdparty/" || true)
+              for tu in "${tufs[@]}"; do
+                echo "Analyzing $tu"
+                clang-tidy "$tu" --quiet --warnings-as-errors="*" -p build-sa || true
+              done
+            else
+              echo "No compile_commands.json; skipping clang-tidy."
+            fi
+          else
+            echo "clang-tidy not installed; skipping."
+          fi
+
+      - name: cppcheck (Ubuntu only, best-effort)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -x
+          sudo apt-get update && sudo apt-get install -y cppcheck || true
+          cppcheck --enable=all --inconclusive --quiet --error-exitcode=0 --suppress=missingIncludeSystem \
+            --template=gcc -I Source/Code --exclude=Source/Thirdparty . || true

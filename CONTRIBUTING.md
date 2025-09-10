@@ -40,7 +40,7 @@ A `Tests` directory exists at the root to hold **unit** and **functional** tests
 - **Constants:** `ALL_CAPS` with underscores.
 - **Bracing & Conditionals:** **Allman** style; braces required for all blocks.
 - **Pointers:** Initialize with `nullptr`; every `new` must have a corresponding `delete` in the same ownership scope.
-- **Headers Included:** Only `<stdio.h>` by default. No other standard or third‑party headers without prior maintainer approval (or those included internally by approved third‑party code). All C++ header files are with extension .hpp
+- **Headers Included:** Only `<stdio.h>` by default. No other standard or third‑party headers without prior maintainer approval (or those included internally by approved third‑party code).
 - **No Exceptions:** Do **not** use `try/catch` without explicit, file‑scoped approval.
 - **No `using namespace` or `using` aliases** anywhere.
 - **UI Isolation:** Do not call Qt/ImGui directly from features; use the `UIBackend` interface.

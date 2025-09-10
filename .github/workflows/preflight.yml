@@ -1,0 +1,45 @@
+name: PreFlight
+
+on:
+  push:
+    branches: [ main, dev, feat/** ]
+  pull_request:
+
+env:
+  AEGIS_DEBUG_LOG: "1"
+
+jobs:
+  preflight:
+    name: PreFlight (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Verify toolchains
+        shell: bash
+        run: |
+          set -x
+          cmake --version || { echo "::error ::CMake not available"; exit 1; }
+          if [ "${{ matrix.os }}" != "windows-latest" ]; then
+            if command -v ninja >/dev/null 2>&1; then
+              ninja --version
+            else
+              echo "Ninja not present (ok if CMake uses Make)"
+            fi
+          fi
+          echo "Toolchain OK"
+
+      - name: Verify submodules
+        shell: bash
+        run: |
+          set -x
+          git submodule status || { echo "::error ::Submodules not initialized"; exit 1; }
+          echo "Submodules OK"

@@ -1,0 +1,48 @@
+name: Linting
+
+on:
+  push:
+    branches: [ main, dev, feat/** ]
+  pull_request:
+
+env:
+  AEGIS_DEBUG_LOG: "1"
+
+jobs:
+  lint:
+    name: Lint (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Lint — header/usage policy
+        shell: bash
+        run: |
+          set -x
+          shopt -s globstar || true
+          files=$(ls -1 **/*.hpp **/*.cpp 2>/dev/null || true)
+          if [ -z "$files" ]; then
+            echo "No .hpp/.cpp files found; skipping lint."
+            exit 0
+          fi
+          # Disallow 'using namespace' and using-aliases
+          if grep -RInE "^[[:space:]]*using[[:space:]]+namespace[[:space:]]+" $files; then
+            echo "::error ::Found 'using namespace' (forbidden)."; exit 1; fi
+          # Disallow try/catch unless explicitly whitelisted
+          if grep -RInE "^[[:space:]]*try[[:space:]]*\{|catch[[:space:]]*\(" $files | grep -v "AEGIS_EXCEPTION_APPROVED"; then
+            echo "::error ::Found try/catch without AEGIS_EXCEPTION_APPROVED."; exit 1; fi
+          # Forbid project local .h includes; enforce .hpp
+          if grep -RInE "#[[:space:]]*include[[:space:]]*\".*\.h\"" -- **/*.cpp **/*.hpp 2>/dev/null | grep -v "/Thirdparty/"; then
+            echo "::error ::Found local includes of .h; use .hpp."; exit 1; fi
+          # Forbid common C++ std headers (allow only <stdio.h>); ignore Thirdparty
+          if grep -RInE "#[[:space:]]*include[[:space:]]*<((string|vector|memory|thread|mutex|chrono|filesystem|map|unordered_map|set|iostream|sstream|iomanip|future|optional|variant|any|type_traits|limits|array|algorithm|functional|utility|bitset|random|regex|tuple|list|deque|queue|stack)\b.*)>" -- **/*.hpp **/*.cpp 2>/dev/null | grep -v "/Thirdparty/"; then
+            echo "::error ::Found forbidden C++ std headers; only <stdio.h> is allowed by default."; exit 1; fi
+          echo "Lint checks passed."

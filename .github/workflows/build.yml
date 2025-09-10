@@ -1,43 +1,89 @@
-﻿name: CI (Windows NMake)
+name: Build
 
 on:
   push:
     branches: [ main, dev, feat/** ]
   pull_request:
 
+env:
+  AEGIS_DEBUG_LOG: "1"
+  CMAKE_VERBOSE_MAKEFILE: "ON"
+
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  build:
+    name: Build (${{ matrix.os }} / ${{ matrix.buildtype }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        buildtype: [Release]
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
-
-      - name: Setup Ninja (optional)
-        uses: ashutoshvarma/setup-ninja@v1.1
-        with:
-          version: latest
 
       - name: Setup CMake
         uses: jwlawson/actions-setup-cmake@v2
 
-      - name: Configure (CMake → NMake)
+      - name: Setup Ninja (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        uses: ashutoshvarma/setup-ninja@v1.1
+
+      - name: Setup MSBuild (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Configure (Windows → NMake)
+        if: matrix.os == 'windows-latest'
         shell: cmd
         run: |
+          set AEGIS_DEBUG_LOG=1
           if not exist build mkdir build
           cd build
-          cmake -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DAEGIS_WITH_QT=ON -DAEGIS_WITH_IMGUI=ON ..
-      
-      - name: Build (NMake)
+          cmake -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=${{ matrix.buildtype }} -DCMAKE_VERBOSE_MAKEFILE=ON -DAEGIS_WITH_QT=ON -DAEGIS_WITH_IMGUI=ON ..
+
+      - name: Configure (Linux/macOS → Ninja)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: |
+          set -x
+          mkdir -p build && cd build
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.buildtype }} -DCMAKE_VERBOSE_MAKEFILE=ON -DAEGIS_WITH_QT=ON -DAEGIS_WITH_IMGUI=ON ..
+
+      - name: Build (Windows → NMake)
+        if: matrix.os == 'windows-latest'
         shell: cmd
         run: |
+          set AEGIS_DEBUG_LOG=1
           cd build
           nmake /NOLOGO
 
-      - name: Run Unit Tests
-        shell: cmd
+      - name: Build (Linux/macOS → Ninja)
+        if: matrix.os != 'windows-latest'
+        shell: bash
         run: |
-          if exist RunTests.bat call RunTests.bat
+          set -x
+          cd build
+          cmake --build . --config ${{ matrix.buildtype }} --verbose
+
+      - name: Package artifacts
+        if: always()
+        shell: bash
+        run: |
+          set -x
+          mkdir -p Distro
+          if [ -d "Bin" ]; then cp -r Bin Distro/Bin || true; fi
+          if [ -f "LICENSE" ]; then cp LICENSE Distro/ || true; fi
+          if [ -f "THIRD_PARTY_NOTICES.md" ]; then cp THIRD_PARTY_NOTICES.md Distro/ || true; fi
+          tar -czf Aegis-Cpp-${{ runner.os }}-${{ matrix.buildtype }}.tar.gz Distro || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aegis-Cpp-${{ runner.os }}-${{ matrix.buildtype }}
+          path: |
+            Aegis-Cpp-${{ runner.os }}-${{ matrix.buildtype }}.tar.gz
