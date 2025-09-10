@@ -1,0 +1,9 @@
+[submodule "Source/Thirdparty/TinyXML"]
+	path = Source/Thirdparty/TinyXML
+	url = https://github.com/leethomason/tinyxml2.git
+[submodule "Source/Thirdparty/QtBase"]
+	path = Source/Thirdparty/QtBase
+	url = https://github.com/qt/qtbase
+[submodule "Source/Thirdparty/ImGUI"]
+	path = Source/Thirdparty/ImGUI
+	url = https://github.com/ocornut/imgui
